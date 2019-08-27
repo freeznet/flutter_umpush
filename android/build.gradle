@@ -33,13 +33,13 @@ android {
             //设置支持的SO库架构
             //AS调试的时候，使用的是JIT编译模式，需要点击运行下拉菜单中的Edit Configuration...，增加一个参数：--target-platform android-arm，强行指定armeabi-v7a，否则是不能启动的。
             //flutter build apk时，由于是AOT版本，所以肯定是armeabi-v7a
-            abiFilters 'armeabi-v7a'//,'armeabi','arm64-v8a'
+            abiFilters 'armeabi-v7a'//,'armeabi','arm64-v8a','x86-64','x86'
         }
     }
     lintOptions {
         disable 'InvalidPackage'
     }
-     dependencies {
+    dependencies {
          implementation 'com.umeng.sdk:common:latest.integration'
          implementation 'com.umeng.sdk:utdid:latest.integration'
          implementation 'com.umeng.sdk:push:latest.integration'
@@ -48,5 +48,9 @@ android {
          implementation 'com.umeng.sdk:push-meizu:latest.integration'
          implementation 'com.google.code.gson:gson:latest.integration'
          implementation 'com.android.support:support-v4:27.1.1'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }

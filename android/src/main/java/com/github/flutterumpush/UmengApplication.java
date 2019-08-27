@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -66,6 +68,9 @@ public class UmengApplication extends io.flutter.app.FlutterApplication {
         ApplicationInfo appInfo = null;
         try {
             appInfo = packageManager.getApplicationInfo(this.getPackageName(), PackageManager.GET_META_DATA);
+            if (appInfo.metaData.get(metaKey) == null) {
+                return "";
+            }
             String value = appInfo.metaData.get(metaKey).toString();
             Log.i(TAG, metaKey + ":" + value);
             if (value == null || value.equals("")) {
@@ -85,6 +90,7 @@ public class UmengApplication extends io.flutter.app.FlutterApplication {
     @Override
     public void onCreate() {
         super.onCreate();
+        Handler handler = new Handler(Looper.getMainLooper());
         UMConfigure.setLogEnabled(true);
         // 初始化组件化基础库, 统计SDK/推送SDK/分享SDK都必须调用此初始化接口
 
@@ -112,52 +118,50 @@ public class UmengApplication extends io.flutter.app.FlutterApplication {
             public void launchApp(Context context, UMessage uMessage) {
                 String umengPushMsg = formatMsg(uMessage);
                 Log.i(TAG, "umengPushMsg: " + umengPushMsg);
-                FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK);
+                handler.post(() -> FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK));
                 super.launchApp(context, uMessage);
             }
 
             public void openUrl(Context context, UMessage uMessage) {
                 String umengPushMsg = formatMsg(uMessage);
                 Log.i(TAG, "umengPushMsg: " + umengPushMsg);
-                FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK);
+                handler.post(() -> FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK));
                 super.openUrl(context, uMessage);
             }
 
             public void openActivity(Context context, UMessage uMessage) {
                 String umengPushMsg = formatMsg(uMessage);
                 Log.i(TAG, "umengPushMsg: " + umengPushMsg);
-                FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK);
+                handler.post(() -> FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK));
                 super.openActivity(context, uMessage);
             }
 
             public void dealWithCustomAction(Context context, UMessage uMessage) {
                 String umengPushMsg = formatMsg(uMessage);
                 Log.i(TAG, "umengPushMsg: " + umengPushMsg);
-                FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK);
+                handler.post(() -> FlutterUmpushPlugin.instance.channel.invokeMethod("onMessage", umengPushMsg, FLUTTER_METHOD_CALLBACK));
                 super.dealWithCustomAction(context, uMessage);
             }
         };
         pushAgent.setNotificationClickHandler(notificationClickHandler);
-        pushAgent.register(new
+        pushAgent.register(new IUmengRegisterCallback() {
+           @Override
+           public void onSuccess(String deviceToken) {
+               Log.i(TAG, "device token: " + deviceToken);
+               if (FlutterUmpushPlugin.instance != null) {
+                   //Flutter插件已经初始化完成，可以直接调用
+                   handler.post(() -> FlutterUmpushPlugin.instance.channel.invokeMethod("onToken", deviceToken, FLUTTER_METHOD_CALLBACK));
+               } else { //Flutter尚未初始化（主要原因是使用小米、华为、魅族的离线唤醒方式初始化的，首先执行的的UmengOtherPushActivity）
+                   //缓存
+                   UmengApplication.savePushData(getApplicationContext(), UMENG_PUSH_DEVICE_TOKEN, deviceToken);
+               }
+           }
 
-                                   IUmengRegisterCallback() {
-                                       @Override
-                                       public void onSuccess(String deviceToken) {
-                                           Log.i(TAG, "device token: " + deviceToken);
-                                           if (FlutterUmpushPlugin.instance != null) {
-                                               //Flutter插件已经初始化完成，可以直接调用
-                                               FlutterUmpushPlugin.instance.channel.invokeMethod("onToken", deviceToken, FLUTTER_METHOD_CALLBACK);
-                                           } else { //Flutter尚未初始化（主要原因是使用小米、华为、魅族的离线唤醒方式初始化的，首先执行的的UmengOtherPushActivity）
-                                               //缓存
-                                               UmengApplication.savePushData(getApplicationContext(), UMENG_PUSH_DEVICE_TOKEN, deviceToken);
-                                           }
-                                       }
-
-                                       @Override
-                                       public void onFailure(String s, String s1) {
-                                           Log.i(TAG, "register failed: " + s + " " + s1);
-                                       }
-                                   });
+           @Override
+           public void onFailure(String s, String s1) {
+               Log.i(TAG, "register failed: " + s + " " + s1);
+           }
+        });
         pushAgent.onAppStart();
         HuaWeiRegister.register(this);
         MeizuRegister.register(this, this.metaValue("MZ_APP_ID"), this.metaValue("MZ_APP_KEY"));
